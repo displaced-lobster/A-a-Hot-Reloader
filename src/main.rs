@@ -6,12 +6,9 @@ use std::{fs, io, thread, time};
 use std::process;
 use std::process::Command;
 
-fn get_modified(target: &str) -> Result<u64, io::Error> {
+fn get_modified(target: &str) -> Result<time::SystemTime, io::Error> {
     let modified = fs::metadata(target)?
-                    .modified()?
-                    .duration_since(time::SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs();
+                    .modified()?;
 
     Ok(modified)
 }
@@ -37,19 +34,19 @@ fn main() {
     println!("Watching file '{}'", target);
     println!("On change will execute '{}'", command);
 
-    let mut last_modified = get_modified(&target).unwrap();
+    let mut check_time = time::SystemTime::now();
 
     loop {
         thread::sleep(check_interval);
 
         let modified = get_modified(&target).unwrap();
 
-        if modified > last_modified {
-            last_modified = modified;
-
+        if modified > check_time {
             let _ = Command::new(command)
                         .output()
                         .expect("Failed to execute command");
         }
+
+        check_time = time::SystemTime::now();
     }
 }
