@@ -22,7 +22,7 @@ fn main() {
     let matches = clap_app!(aa =>
         (version: "0.1")
         (author: "Richard M. <scripts.richard@gmail.com>")
-        (about: "Hot reloader")
+        (about: "A'a - a hot reloader to watch a file and execute a command when it changes.")
         (@arg TARGET: +required "The file to be watched")
         (@arg COMMAND: +required "The command to be executed")
     ).get_matches();
