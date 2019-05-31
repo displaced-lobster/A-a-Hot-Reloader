@@ -25,13 +25,15 @@ fn main() {
         (about: "A'a - a hot reloader to watch a file and execute a command when it changes.")
         (@arg TARGET: +required "The file to be watched")
         (@arg COMMAND: +required "The command to be executed")
+        (@arg TIME: -t +takes_value "Set time time interval (in seconds) to check for file changes")
     ).get_matches();
 
     let target = matches.value_of("TARGET").unwrap();
     let command = matches.value_of("COMMAND").unwrap();
-    let check_interval = time::Duration::from_secs(2);
+    let time = matches.value_of("TIME").unwrap_or("2");
+    let check_interval = time::Duration::from_secs(time.parse::<u64>().unwrap());
 
-    println!("Watching file '{}'", target);
+    println!("Watching file '{}' on {} second interval", target, time);
     println!("On change will execute '{}'", command);
 
     let mut check_time = time::SystemTime::now();
