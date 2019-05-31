@@ -2,7 +2,7 @@
 name = "aa"
 version = "0.1.0"
 authors = ["Richard Mills <scripts.richard@gmail.com>"]
-edition = "2019"
+edition = "2018"
 
 [dependencies]
 clap = "2.33.0"
