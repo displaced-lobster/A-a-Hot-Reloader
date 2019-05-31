@@ -2,15 +2,13 @@
 extern crate clap;
 extern crate ctrlc;
 
-use std::{fs, thread, time};
+use std::{fs, io, thread, time};
 use std::process;
 use std::process::Command;
 
-fn get_modified(target: &str) -> Result<u64, String> {
-    let modified = fs::metadata(target)
-                    .unwrap()
-                    .modified()
-                    .unwrap()
+fn get_modified(target: &str) -> Result<u64, io::Error> {
+    let modified = fs::metadata(target)?
+                    .modified()?
                     .duration_since(time::SystemTime::UNIX_EPOCH)
                     .unwrap()
                     .as_secs();
@@ -34,7 +32,7 @@ fn main() {
 
     let target = matches.value_of("TARGET").unwrap();
     let command = matches.value_of("COMMAND").unwrap();
-    let five_seconds = time::Duration::from_secs(5);
+    let check_interval = time::Duration::from_secs(2);
 
     println!("Watching file '{}'", target);
     println!("On change will execute '{}'", command);
@@ -42,7 +40,7 @@ fn main() {
     let mut last_modified = get_modified(&target).unwrap();
 
     loop {
-        thread::sleep(five_seconds);
+        thread::sleep(check_interval);
 
         let modified = get_modified(&target).unwrap();
 
