@@ -7,3 +7,6 @@ edition = "2018"
 [dependencies]
 clap = "2.33.0"
 ctrlc = "3.1.2"
+slog = "2.4.1"
+slog-async = "2.3.0"
+slog-term = "2.4.0"
