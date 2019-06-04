@@ -20,7 +20,20 @@ fn get_modified(target: &str) -> Result<time::SystemTime, io::Error> {
     Ok(modified)
 }
 
+fn create_logger(log_level: slog::Level) -> slog::Logger {
+    let decorator = slog_term::TermDecorator::new().build();
+    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
+    let drain = slog_async::Async::new(drain).build().fuse();
+    let drain = slog::LevelFilter::new(drain, log_level).fuse();
+
+    slog::Logger::root(drain, o!())
+}
+
 fn main() {
+    ctrlc::set_handler(move || {
+        process::exit(0);
+    }).expect("Error setting SIGINT handler");
+
     let matches = clap_app!(aa =>
         (version: "0.1")
         (author: "Richard M. <scripts.richard@gmail.com>")
@@ -37,16 +50,7 @@ fn main() {
         2 | _ => slog::Level::Trace,
     };
 
-    let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
-    let drain = slog_async::Async::new(drain).build().fuse();
-    let drain = slog::LevelFilter::new(drain, log_level).fuse();
-
-    let logger = slog::Logger::root(drain, o!());
-
-    ctrlc::set_handler(move || {
-        process::exit(0);
-    }).expect("Error setting SIGINT handler");
+    let logger = create_logger(log_level);
 
     let target = matches.value_of("TARGET").unwrap();
     let command: Vec<String> = values_t!(matches.values_of("COMMAND"), String).unwrap();
