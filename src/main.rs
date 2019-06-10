@@ -8,6 +8,7 @@ extern crate slog_async;
 extern crate slog_term;
 
 use std::{fs, io, thread, time};
+use std::io::ErrorKind;
 use std::process;
 use std::process::Command;
 
@@ -35,13 +36,13 @@ fn main() {
     }).expect("Error setting SIGINT handler");
 
     let matches = clap_app!(aa =>
-        (version: "0.1")
+        (version: "0.1.1")
         (author: "Richard M. <scripts.richard@gmail.com>")
         (about: "A'a - a hot reloader to watch a file and execute a command when it changes.")
-        (@arg TARGET: +required "The file to be watched")
+        (@arg TARGET: +required "A specific file to be watched")
         (@arg COMMAND: +required +multiple "The command to be executed")
-        (@arg TIME: -t +takes_value "Set time time interval (in seconds) to check for file changes")
-        (@arg verbose: -v +multiple "Set the verbosity")
+        (@arg TIME: -t --time +takes_value "Set the time interval (in seconds) to check for file changes")
+        (@arg verbose: -v --verbose +multiple "Prints additional output")
     ).get_matches();
 
     let log_level = match matches.occurrences_of("verbose") {
@@ -69,7 +70,18 @@ fn main() {
     loop {
         thread::sleep(check_interval);
 
-        let modified = get_modified(&target).unwrap();
+        let modified = get_modified(&target);
+        let modified = match modified {
+            Ok(time) => time,
+            Err(error) => match error.kind() {
+                ErrorKind::NotFound => {
+                    println!("No file '{}'", target);
+                    error!(logger, "No file");
+                    process::exit(1);
+                },
+                _ => panic!("There was a problen accessing file '{}'", target),
+            }
+        };
 
         if modified > check_time {
             debug!(logger, "Change detected");
