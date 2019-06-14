@@ -1,6 +1,6 @@
 [package]
 name = "aa"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Richard Mills <scripts.richard@gmail.com>"]
 edition = "2018"
 
@@ -10,3 +10,4 @@ ctrlc = "3.1.2"
 slog = "2.4.1"
 slog-async = "2.3.0"
 slog-term = "2.4.0"
+walkdir = "2"

@@ -4,31 +4,14 @@ extern crate ctrlc;
 
 #[macro_use]
 extern crate slog;
-extern crate slog_async;
-extern crate slog_term;
 
-use std::{fs, io, thread, time};
-use std::io::ErrorKind;
-use std::process;
+extern crate aa;
+
+use aa::create_logger;
+use aa::watchers::Watcher;
+
+use std::{env, process, thread, time};
 use std::process::Command;
-
-use slog::Drain;
-
-fn get_modified(target: &str) -> Result<time::SystemTime, io::Error> {
-    let modified = fs::metadata(target)?
-                    .modified()?;
-
-    Ok(modified)
-}
-
-fn create_logger(log_level: slog::Level) -> slog::Logger {
-    let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
-    let drain = slog_async::Async::new(drain).build().fuse();
-    let drain = slog::LevelFilter::new(drain, log_level).fuse();
-
-    slog::Logger::root(drain, o!())
-}
 
 fn main() {
     ctrlc::set_handler(move || {
@@ -36,24 +19,38 @@ fn main() {
     }).expect("Error setting SIGINT handler");
 
     let matches = clap_app!(aa =>
-        (version: "0.1.1")
+        (version: "0.2.0")
         (author: "Richard M. <scripts.richard@gmail.com>")
-        (about: "A'a - a hot reloader to watch a file and execute a command when it changes.")
-        (@arg TARGET: +required "A specific file to be watched")
+        (about: "A'a - a hot reloader to watch a directory or single file and execute a command when it is modified.")
         (@arg COMMAND: +required +multiple "The command to be executed")
+        (@arg TARGET: -f --file +takes_value "A specific file to be watched")
         (@arg TIME: -t --time +takes_value "Set the time interval (in seconds) to check for file changes")
         (@arg verbose: -v --verbose +multiple "Prints additional output")
     ).get_matches();
 
     let log_level = match matches.occurrences_of("verbose") {
-        0 => slog::Level::Info,
-        1 => slog::Level::Debug,
-        2 | _ => slog::Level::Trace,
+        0 => slog::Level::Error,
+        1 => slog::Level::Info,
+        2 => slog::Level::Debug,
+        3 | _ => slog::Level::Trace,
     };
 
     let logger = create_logger(log_level);
 
-    let target = matches.value_of("TARGET").unwrap();
+    let mut watcher = if let Some(target) = matches.value_of("TARGET") {
+        info!(logger, "Watching file '{}'", target);
+
+        Watcher::file_watcher(&target)
+    } else {
+        if let Some(path) = env::current_dir().unwrap().to_str() {
+            info!(logger, "Watching directory '{}'", path);
+
+            Watcher::dir_watcher(&path)
+        } else {
+            panic!("Failed to get current working directory")
+        }
+    };
+
     let command: Vec<String> = values_t!(matches.values_of("COMMAND"), String).unwrap();
     let time = matches.value_of("TIME").unwrap_or("2");
 
@@ -61,29 +58,13 @@ fn main() {
 
     let (exec, args) = command.split_first().unwrap();
 
-    info!(logger, "Watching target '{}'", target);
     info!(logger, "Checking on {} second interval", time);
     info!(logger, "On change, executing '{}'", exec);
-
-    let mut check_time = time::SystemTime::now();
 
     loop {
         thread::sleep(check_interval);
 
-        let modified = get_modified(&target);
-        let modified = match modified {
-            Ok(time) => time,
-            Err(error) => match error.kind() {
-                ErrorKind::NotFound => {
-                    println!("No file '{}'", target);
-                    error!(logger, "No file");
-                    process::exit(1);
-                },
-                _ => panic!("There was a problen accessing file '{}'", target),
-            }
-        };
-
-        if modified > check_time {
+        if watcher.was_modified().unwrap() {
             debug!(logger, "Change detected");
 
             let output = Command::new(exec)
@@ -95,7 +76,5 @@ fn main() {
                 error!(logger, "{}", String::from_utf8_lossy(&output.stderr));
             }
         }
-
-        check_time = time::SystemTime::now();
     }
 }
