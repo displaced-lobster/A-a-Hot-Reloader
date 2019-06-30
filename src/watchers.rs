@@ -26,7 +26,7 @@ pub struct Watcher {
     notify: Inotify,
     watch_mask: WatchMask,
     logger: Option<slog::Logger>,
-    directories: Option<HashMap<WatchDescriptor, String>>
+    paths: Option<HashMap<WatchDescriptor, String>>
 }
 
 impl Watcher {
@@ -41,7 +41,7 @@ impl Watcher {
             notify: inotify,
             watch_mask: watch_mask,
             logger: None,
-            directories: None,
+            paths: None,
         })
     }
 
@@ -51,9 +51,9 @@ impl Watcher {
                          WatchMask::CREATE |
                          WatchMask::DELETE;
 
-        let directories = match trav {
+        let paths = match trav {
             Traversal::RECURSIVE => {
-                let mut directories = HashMap::new();
+                let mut paths = HashMap::new();
 
                 for entry in WalkDir::new(path)
                     .follow_links(true)
@@ -64,11 +64,11 @@ impl Watcher {
                         let wd = inotify.add_watch(path, watch_mask)?;
 
                         if let Some(path) = path.to_str() {
-                            directories.insert(wd, String::from(path));
+                            paths.insert(wd, String::from(path));
                         }
                 }
 
-                Some(directories)
+                Some(paths)
             },
             Traversal::HEURISTIC => {
                 inotify.add_watch(path, watch_mask)?;
@@ -82,7 +82,7 @@ impl Watcher {
             notify: inotify,
             watch_mask: watch_mask,
             logger: None,
-            directories: directories,
+            paths: paths,
         })
     }
 
@@ -108,21 +108,23 @@ impl Watcher {
                             info!(logger, "Directory created: {:?}", event.name);
                         }
 
-                        if let Some(directories) = &mut self.directories {
+                        if let Some(paths) = &mut self.paths {
                             if let Some(name) = event.name {
                                 if let Some(name) = name.to_str() {
-                                    let wd = event.wd;
+                                    if !name.starts_with(".") {
+                                        let wd = event.wd;
 
-                                    if let Some(path) = directories.get(&wd) {
-                                        let new_path = path.to_owned() + "/" + name;
+                                        if let Some(path) = paths.get(&wd) {
+                                            let new_path = path.to_owned() + "/" + name;
 
-                                        if let Some(logger) = &self.logger {
-                                            info!(logger, "Watching new directory: {}", new_path);
+                                            if let Some(logger) = &self.logger {
+                                                info!(logger, "Watching new directory: {}", new_path);
+                                            }
+
+                                            let wd = self.notify.add_watch(&new_path, self.watch_mask)?;
+
+                                            paths.insert(wd, new_path);
                                         }
-
-                                        let wd = self.notify.add_watch(&new_path, self.watch_mask)?;
-
-                                        directories.insert(wd, new_path);
                                     }
                                 }
                             }
@@ -136,15 +138,6 @@ impl Watcher {
                     if event.mask.contains(EventMask::ISDIR) {
                         if let Some(logger) = &self.logger {
                             info!(logger, "Directory deleted: {:?}", event.name);
-                        }
-
-                        if let Some(directories) = &mut self.directories {
-                            directories.remove(&event.wd);
-                            self.notify.rm_watch(event.wd)?;
-
-                            if let Some(logger) = &self.logger {
-                                info!(logger, "Stopped watching deleted directory: {:?}", event.name);
-                            }
                         }
                     } else {
                         if let Some(logger) = &self.logger {
