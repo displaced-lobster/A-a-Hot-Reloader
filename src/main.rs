@@ -57,8 +57,9 @@ fn main() {
         }
     };
 
-    let command: Vec<String> = values_t!(matches.values_of("COMMAND"), String).unwrap();
+    watcher.register_logger(logger.new(o!("watcher" => 1)));
 
+    let command: Vec<String> = values_t!(matches.values_of("COMMAND"), String).unwrap();
     let (exec, args) = command.split_first().unwrap();
 
     info!(logger, "On change, executing '{}'", exec);
