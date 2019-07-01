@@ -25,7 +25,8 @@ fn main() {
         (@arg COMMAND: +required +multiple "The command to be executed")
         (@arg verbose: -v --verbose +multiple "Prints additional output")
         (@arg recursive: -r --recursive "Recursively watch the directory")
-        (@arg TARGET: -f --file +takes_value "A specific file to be watched")
+        (@arg FILE: -f --file +takes_value "A specific file to be watched")
+        (@arg PATH: -p --path +takes_value "A path to be watched")
     ).get_matches();
 
     let log_level = match matches.occurrences_of("verbose") {
@@ -37,24 +38,28 @@ fn main() {
 
     let logger = create_logger(log_level);
 
-    let mut watcher = if let Some(target) = matches.value_of("TARGET") {
+    let mut watcher = if let Some(target) = matches.value_of("FILE") {
         info!(logger, "Watching file '{}'", target);
 
         Watcher::file_watcher(&target).unwrap()
     } else {
-        if let Some(path) = env::current_dir().unwrap().to_str() {
-            info!(logger, "Watching directory '{}'", path);
-
-            let traversal = if matches.is_present("recursive") {
-                Traversal::RECURSIVE
-            } else {
-                Traversal::HEURISTIC
-            };
-
-            Watcher::dir_watcher(&path, traversal).unwrap()
+        let path = if let Some(path) = matches.value_of("PATH") {
+            String::from(path)
+        } else if let Some(path) = env::current_dir().unwrap().to_str() {
+            String::from(path)
         } else {
-            panic!("Failed to get current working directory")
-        }
+            panic!("Failed to get path");
+        };
+
+        info!(logger, "Watching directory '{}'", path);
+
+        let traversal = if matches.is_present("recursive") {
+            Traversal::RECURSIVE
+        } else {
+            Traversal::HEURISTIC
+        };
+
+        Watcher::dir_watcher(&path, traversal).unwrap()
     };
 
     watcher.register_logger(logger.new(o!("watcher" => 1)));
