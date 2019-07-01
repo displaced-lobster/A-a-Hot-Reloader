@@ -8,10 +8,10 @@ extern crate slog;
 extern crate aa;
 
 use aa::create_logger;
+use aa::executor::Executor;
 use aa::watchers::{Traversal, Watcher};
 
 use std::{env, process};
-use std::process::Command;
 
 fn main() {
     ctrlc::set_handler(move || {
@@ -65,20 +65,13 @@ fn main() {
     watcher.register_logger(logger.new(o!("watcher" => 1)));
 
     let command: Vec<String> = values_t!(matches.values_of("COMMAND"), String).unwrap();
-    let (exec, args) = command.split_first().unwrap();
+    let executor = Executor::new(&command);
 
-    info!(logger, "On change, executing '{}'", exec);
+    info!(logger, "On change, executing '{:?}'", command);
 
     while watcher.watch().unwrap() {
         info!(logger, "Change detected");
 
-        let output = Command::new(exec)
-                        .args(args)
-                        .output()
-                        .expect("Failed to execute command");
-
-        if !output.status.success() {
-            error!(logger, "{}", String::from_utf8_lossy(&output.stderr));
-        }
+        executor.execute().unwrap();
     }
 }

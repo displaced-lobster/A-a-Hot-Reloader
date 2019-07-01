@@ -5,6 +5,7 @@ extern crate slog_term;
 
 use slog::Drain;
 
+pub mod executor;
 pub mod watchers;
 
 pub fn create_logger(log_level: slog::Level) -> slog::Logger {
