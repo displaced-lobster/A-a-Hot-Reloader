@@ -11,6 +11,20 @@ use inotify::{
     WatchMask,
 };
 
+// Macro alias for slog info to first check for a logger.
+macro_rules! watcher_info(
+    ($w:expr, #$tag:expr, $($args:tt)+) => {
+        if let Some(logger) = &$w.logger {
+            info!(logger, $tag, $($args)+)
+        }
+    };
+    ($w:expr, $($args:tt)+) => {
+        if let Some(logger) = &$w.logger {
+            info!(logger, $($args)+)
+        }
+    };
+);
+
 pub enum Traversal {
     RECURSIVE,
     HEURISTIC,
@@ -104,53 +118,37 @@ impl Watcher {
             for event in events {
                 if event.mask.contains(EventMask::CREATE) {
                     if event.mask.contains(EventMask::ISDIR) {
-                        if let Some(logger) = &self.logger {
-                            info!(logger, "Directory created: {:?}", event.name);
-                        }
+                        watcher_info!(self, "Directory created: {:?}", event.name);
 
-                        if let Some(paths) = &mut self.paths {
-                            if let Some(name) = event.name {
-                                if let Some(name) = name.to_str() {
-                                    if !name.starts_with(".") {
-                                        let wd = event.wd;
+                        if let (Some(paths), Some(name)) = (&mut self.paths, event.name) {
+                            if let Some(name) = name.to_str() {
+                                if !name.starts_with(".") {
+                                    let wd = event.wd;
 
-                                        if let Some(path) = paths.get(&wd) {
-                                            let new_path = path.to_owned() + "/" + name;
+                                    if let Some(path) = paths.get(&wd) {
+                                        let new_path = path.to_owned() + "/" + name;
+                                        watcher_info!(self, "Watching new directory: {}", new_path);
 
-                                            if let Some(logger) = &self.logger {
-                                                info!(logger, "Watching new directory: {}", new_path);
-                                            }
-
-                                            let wd = self.notify.add_watch(&new_path, self.watch_mask)?;
-
-                                            paths.insert(wd, new_path);
-                                        }
+                                        let wd = self.notify.add_watch(&new_path, self.watch_mask)?;
+                                        paths.insert(wd, new_path);
                                     }
                                 }
                             }
                         }
                     } else {
-                        if let Some(logger) = &self.logger {
-                            info!(logger, "File created: {:?}", event.name);
-                        }
+                        watcher_info!(self, "File created: {:?}", event.name);
                     }
                 } else if event.mask.contains(EventMask::DELETE) {
                     if event.mask.contains(EventMask::ISDIR) {
-                        if let Some(logger) = &self.logger {
-                            info!(logger, "Directory deleted: {:?}", event.name);
-                        }
+                        watcher_info!(self, "Directory deleted: {:?}", event.name);
                     } else {
-                        if let Some(logger) = &self.logger {
-                            info!(logger, "File deleted: {:?}", event.name);
-                        }
+                        watcher_info!(self, "File deleted: {:?}", event.name);
                     }
                 } else if event.mask.contains(EventMask::MODIFY) {
-                    if let Some(logger) = &self.logger {
-                        if event.mask.contains(EventMask::ISDIR) {
-                            info!(logger, "Directory modified: {:?}", event.name);
-                        } else {
-                            info!(logger, "File modified: {:?}", event.name);
-                        }
+                    if event.mask.contains(EventMask::ISDIR) {
+                        watcher_info!(self, "Directory modified: {:?}", event.name);
+                    } else {
+                        watcher_info!(self, "File modified: {:?}", event.name);
                     }
                 }
                 return Ok(true);
@@ -165,13 +163,12 @@ impl Watcher {
             let events = self.notify.read_events_blocking(&mut buffer)?;
 
             for event in events {
-                if let Some(logger) = &self.logger {
-                    if event.mask.contains(EventMask::MODIFY) {
-                        info!(logger, "File modified");
-                    } else {
-                        info!(logger, "Unexpected event: {:?}", event.name);
-                    }
+                if event.mask.contains(EventMask::MODIFY) {
+                    watcher_info!(self, "File modified");
+                } else {
+                    watcher_info!(self, "Unexpected event: {:?}", event.name);
                 }
+
                 return Ok(true);
             }
         }
