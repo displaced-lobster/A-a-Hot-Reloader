@@ -19,7 +19,7 @@ fn main() {
     }).expect("Error setting SIGINT handler");
 
     let matches = clap_app!(aa =>
-        (version: "0.2.0")
+        (version: "0.3.0")
         (author: "Richard M. <scripts.richard@gmail.com>")
         (about: "A'a - a hot reloader to watch a directory or single file and execute a command when it is modified.")
         (@arg COMMAND: +required +multiple "The command to be executed")
