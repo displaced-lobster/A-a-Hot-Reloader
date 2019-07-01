@@ -65,6 +65,8 @@ fn main() {
     info!(logger, "On change, executing '{}'", exec);
 
     while watcher.watch().unwrap() {
+        info!(logger, "Change detected");
+
         let output = Command::new(exec)
                         .args(args)
                         .output()
